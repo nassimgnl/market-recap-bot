@@ -18,19 +18,10 @@
 - Ouverture Europe (ce matin)
 - Bitcoin/Ethereum
 - Top mouvements
-- **Analyse IA basée sur les news Reuters du jour + hier**
-
-**Exemple jeudi matin** :
-- News Reuters du jeudi matin (juste lues)
-- News Reuters du mercredi soir (fermeture US)
-- Claude analyse : "Voici les chiffres de hier, voici les news du jour et d'hier, que s'est-il passé ?"
 
 Email reçu = **mise en page HTML** (pas juste du texte brut).
 
-**Sources** :
-- **Données marchés** : Yahoo Finance / Morningstar
-- **News** : Reuters via NewsAPI (news du jour + jour précédent)
-- **Analyse** : Claude (basée sur vraies données + vraies news) (via yfinance)
+**Données** : Yahoo Finance / Morningstar (via yfinance)
 
 ---
 
@@ -67,20 +58,7 @@ Puis, ajoute les fichiers qu'on vient de créer :
 
 ---
 
-### Étape 3️⃣ : Obtenir une clé API Claude (2 min)
-
-Le bot utilise Claude pour générer un résumé intelligent des marchés. C'est gratuit !
-
-1. Va sur **https://console.anthropic.com**
-2. Crée un compte (gratuit, juste email + mot de passe)
-3. Va dans **API Keys** (à gauche)
-4. Clique **Create Key**
-5. Donne-lui un nom (ex: "market-bot")
-6. **Copie la clé** (longue chaîne commençant par `sk-...`)
-
----
-
-### Étape 4️⃣ : Ajouter tous tes secrets GitHub
+### Étape 3️⃣ : Ajouter tes identifiants en secret
 
 Les "secrets" = tes identifiants sont chiffrés sur GitHub (pas visibles).
 
@@ -88,36 +66,30 @@ Les "secrets" = tes identifiants sont chiffrés sur GitHub (pas visibles).
 2. À gauche → **Secrets and variables** → **Actions**
 3. Clique sur **New repository secret** (bouton vert)
 
-Crée ces **5 secrets** :
+Crée ces 3 secrets :
 
 | Nom | Valeur |
 |---|---|
 | `EMAIL_ADDRESS` | Ton adresse Gmail (ex: `moi@gmail.com`) |
 | `EMAIL_PASSWORD` | Le code à 16 caractères de l'étape 1 (sans espaces) |
-| `EMAIL_TO` | L'adresse où tu veux reçevoir le recap |
-| `ANTHROPIC_API_KEY` | Ta clé API Claude (commençant par `sk-...`) |
-| `NEWSAPI_KEY` | Ta clé API NewsAPI (pour les news Reuters) |
+| `EMAIL_TO` | L'adresse où tu veux reçevoir le recap (peut être la même que `EMAIL_ADDRESS` ou une autre) |
 
-**Exemple** : 
-- Gmail code `abcd efgh ijkl mnop` → tu mets `abcdefghijklmnop` (sans espaces)
-- Clé Claude `sk-ant-v0-abc123...` → tu la copies telle quelle
-- Clé NewsAPI `xxxxxxxxxxxxx` → tu la copies telle quelle
+**Exemple** : si ton code Gmail était `abcd efgh ijkl mnop`, tu mets `abcdefghijklmnop` dans le secret (sans espaces).
 
 ---
 
-### Étape 5️⃣ : Tester
+### Étape 4️⃣ : Tester
 
 1. Dans ton repo → **Actions** (en haut)
 2. À gauche → **Daily Market Recap**
 3. À droite → **Run workflow** (bouton bleu)
 4. **Run workflow** (confirmation)
 
-Attends **45-60 secondes**, tu dois recevoir le mail avec le résumé IA.
+Attends ~30 secondes, tu dois recevoir le mail.
 
 Si ça marche pas :
-- Vérifie que les 4 secrets sont bien remplis (Settings → Secrets)
+- Vérifie que les 3 secrets sont bien remplis
 - Regarde les logs de GitHub (Actions → Daily Market Recap → dernier run → voir les logs rouges si erreur)
-- L'API Claude prend un peu de temps la première fois
 
 ---
 
@@ -194,31 +166,11 @@ Change les nombres :
 
 ---
 
-**"Erreur : ANTHROPIC_API_KEY not defined"**
-- Ta clé API Claude n'est pas dans les secrets GitHub → va dans Settings → Secrets → ajoute ANTHROPIC_API_KEY
-
----
-
-## 🛠️ Tester en local (optionnel)
-
-Si tu veux tester le bot sur ton PC avant :
-
-```bash
-pip install -r requirements.txt
-export EMAIL_ADDRESS="toi@gmail.com"
-export EMAIL_PASSWORD="xxxxxxxxxxxxxxxx"
-export EMAIL_TO="toi@gmail.com"
-export ANTHROPIC_API_KEY="sk-ant-v0-..."
-python market_bot.py
-```
-
----
-
 ## 📞 Questions ?
 
 Si ça coince :
-1. Regarde les logs GitHub (Actions → run → voir le message d'erreur en rouge)
-2. Vérifie que les 4 secrets sont bien remplis (Settings → Secrets)
+1. Regarde les logs GitHub (Actions → run → voir le message d'erreur)
+2. Vérifie que les 3 secrets sont bien remplis
 3. Essaie un run manuel (Actions → Run workflow)
 
 ---
