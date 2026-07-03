@@ -2,7 +2,8 @@ name: Daily Market Recap
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    # 06h30 UTC = 08h30 CEST (heure d'été)
+    - cron: "30 6 * * 1-5"
   workflow_dispatch:
 
 jobs:
