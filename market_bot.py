@@ -24,6 +24,57 @@ from email.mime.text import MIMEText
 import yfinance as yf
 
 # ============================================================================
+# SECTEURS & THÈMES (LIVE DATA)
+# ============================================================================
+
+SECTORS = {
+    "Tech": "XLK",
+    "Énergie": "XLE",
+    "Finance": "XLF",
+    "Santé": "XLV",
+    "Industrie": "XLI",
+    "Immobilier": "XLRE",
+    "Conso discrétionnaire": "XLY",
+    "Conso de base": "XLP",
+    "Utilities": "XLU",
+    "Matériaux": "XLB"
+}
+
+THEMES = {
+    "Semi-conducteurs": ["NVDA", "AMD", "TSM", "ASML"],
+    "IA": ["MSFT", "NVDA", "GOOGL", "PLTR"],
+    "Biopharma": ["LLY", "MRK", "PFE", "BMY"],
+    "EV": ["TSLA", "RIVN", "LCID"],
+    "Solaire": ["ENPH", "SEDG", "FSLR"],
+    "Crypto": ["COIN", "MSTR"],
+    "Cybersécurité": ["CRWD", "PANW", "ZS"]
+}
+
+def get_sector_performance():
+    results = []
+    for name, ticker in SECTORS.items():
+        price, change = get_price_change(ticker)
+        if change is not None:
+            results.append({"name": name, "change": change})
+    results.sort(key=lambda x: x["change"], reverse=True)
+    return results
+
+def get_theme_performance():
+    results = []
+    for theme, tickers in THEMES.items():
+        changes = []
+        for t in tickers:
+            price, change = get_price_change(t)
+            if change is not None:
+                changes.append(change)
+        if changes:
+            avg = sum(changes) / len(changes)
+            results.append({"theme": theme, "change": avg})
+    results.sort(key=lambda x: x["change"], reverse=True)
+    return results
+
+
+# ============================================================================
 # ACTIFS À SUIVRE
 # ============================================================================
 
@@ -150,6 +201,16 @@ def build_html_email(is_monday):
     asia_indices = collect_indices("ASIE")
     crypto = get_crypto_data()
     movers = get_top_movers()
+
+    sectors = get_sector_performance()
+    themes = get_theme_performance()
+
+    top_sectors = sectors[:3]
+    bottom_sectors = sectors[-3:]
+
+    top_themes = themes[:3]
+    bottom_themes = themes[-3:]
+
     
     today = datetime.now().strftime("%A %d %B %Y").capitalize()
     us_label = "Clôture US — vendredi soir" if is_monday else "Clôture US — hier soir"
@@ -424,6 +485,37 @@ def build_html_email(is_monday):
 
         🔴 Pétrole (-2,0%)<br>
         ExxonMobil • Chevron • Occidental
+
+      </div>
+    </div>
+
+
+    
+    <!-- DYNAMIC SECTORS & THEMES -->
+    <div class="section">
+      <div class="section-title">📊 Leaders & Retardataires</div>
+
+      <div style="font-size:13px; line-height:1.6; color:#333;">
+
+        <strong>📊 Secteurs</strong><br><br>
+
+        🟢 {top_sectors[0]['name']} ({top_sectors[0]['change']:.2f}%)<br>
+        🟢 {top_sectors[1]['name']} ({top_sectors[1]['change']:.2f}%)<br>
+        🟢 {top_sectors[2]['name']} ({top_sectors[2]['change']:.2f}%)<br><br>
+
+        🔴 {bottom_sectors[0]['name']} ({bottom_sectors[0]['change']:.2f}%)<br>
+        🔴 {bottom_sectors[1]['name']} ({bottom_sectors[1]['change']:.2f}%)<br>
+        🔴 {bottom_sectors[2]['name']} ({bottom_sectors[2]['change']:.2f}%)<br><br>
+
+        <strong>🎯 Thématiques</strong><br><br>
+
+        🟢 {top_themes[0]['theme']} ({top_themes[0]['change']:.2f}%)<br>
+        🟢 {top_themes[1]['theme']} ({top_themes[1]['change']:.2f}%)<br>
+        🟢 {top_themes[2]['theme']} ({top_themes[2]['change']:.2f}%)<br><br>
+
+        🔴 {bottom_themes[0]['theme']} ({bottom_themes[0]['change']:.2f}%)<br>
+        🔴 {bottom_themes[1]['theme']} ({bottom_themes[1]['change']:.2f}%)<br>
+        🔴 {bottom_themes[2]['theme']} ({bottom_themes[2]['change']:.2f}%)<br>
 
       </div>
     </div>
