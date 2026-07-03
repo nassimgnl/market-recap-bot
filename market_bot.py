@@ -1,31 +1,27 @@
 #!/usr/bin/env python3
 """
-Market Recap Bot v4 - Avec Reuters via NewsAPI
-===============================================
-Récupère les données des marchés + news Reuters VRAIES pour l'analyse IA.
+Market Recap Bot v2 - Zéro Config
+==================================
+Récupère les données des marchés et envoie un email HTML chaque matin.
 
-Données : Yahoo Finance / Morningstar
-News : Reuters via NewsAPI
-IA : Claude (analyse basée sur news vraies)
+Données : Yahoo Finance / Morningstar (via yfinance)
+Horaire : automatiquement via GitHub Actions
+Mise en page : HTML design terminal financier
 
-Variables d'environnement requises:
-  EMAIL_ADDRESS       -> ton adresse Gmail
-  EMAIL_PASSWORD      -> mot de passe d'application Gmail (16 caractères)
-  EMAIL_TO            -> où envoyer le recap
-  ANTHROPIC_API_KEY   -> clé API Claude
-  NEWSAPI_KEY         -> clé API NewsAPI (pour Reuters)
+Variables d'environnement:
+  EMAIL_ADDRESS   -> ton adresse Gmail
+  EMAIL_PASSWORD  -> mot de passe d'application Gmail (16 caractères)
+  EMAIL_TO        -> où envoyer le recap (email de destination)
 """
 
 import os
 import smtplib
 import ssl
-import json
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 import yfinance as yf
-import requests
 
 # ============================================================================
 # ACTIFS À SUIVRE
@@ -63,11 +59,13 @@ WATCHLIST = {
 }
 
 # ============================================================================
-# RÉCUPÉRATION DES DONNÉES DE MARCHÉ
+# RÉCUPÉRATION DES DONNÉES
 # ============================================================================
 
 def get_price_change(ticker: str):
-    """Retourne: (prix_actuel, variation_%), ou (None, None) si erreur"""
+    """
+    Retourne: (prix_actuel, variation_%), ou (None, None) si erreur
+    """
     try:
         data = yf.Ticker(ticker).history(period="5d")
         if data.empty or len(data) < 2:
@@ -111,6 +109,7 @@ def get_top_movers():
             })
     
     all_moves.sort(key=lambda x: x["change"])
+    
     return {
         "gainers": list(reversed(all_moves[-3:])),
         "losers": all_moves[:3]
@@ -133,132 +132,6 @@ def get_crypto_data():
 
 
 # ============================================================================
-# RÉCUPÉRATION DES NEWS REUTERS VIA NEWSAPI
-# ============================================================================
-
-def get_reuters_news(api_key, days_back=1):
-    """
-    Récupère les news Reuters des derniers jours via NewsAPI.
-    days_back=1 : news d'hier et d'aujourd'hui
-    Retourne: [(titre, source, date), ...]
-    """
-    
-    if not api_key:
-        print("⚠️  NEWSAPI_KEY non définie")
-        return []
-    
-    try:
-        # Chercher les news Reuters des derniers jours
-        from_date = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
-        to_date = datetime.now().strftime("%Y-%m-%d")
-        
-        url = "https://newsapi.org/v2/everything"
-        params = {
-            "q": "Reuters market finance",
-            "sources": "reuters",
-            "from": from_date,
-            "to": to_date,
-            "sortBy": "publishedAt",
-            "language": "en",
-            "apiKey": api_key,
-            "pageSize": 10
-        }
-        
-        response = requests.get(url, params=params, timeout=10)
-        
-        if response.status_code == 200:
-            articles = response.json().get("articles", [])
-            news = []
-            for article in articles[:8]:  # Top 8 news
-                news.append({
-                    "title": article.get("title", ""),
-                    "source": article.get("source", {}).get("name", "Reuters"),
-                    "date": article.get("publishedAt", ""),
-                    "url": article.get("url", "")
-                })
-            return news
-        else:
-            print(f"⚠️  NewsAPI error: {response.status_code}")
-            return []
-    
-    except Exception as e:
-        print(f"⚠️  Erreur récupération news: {e}")
-        return []
-
-
-# ============================================================================
-# GÉNÉRATION DE L'ANALYSE IA AVEC NEWS VRAIES
-# ============================================================================
-
-def generate_ai_analysis(us_indices, asia_indices, europe_indices, crypto, movers, reuters_news, is_monday):
-    """
-    Appelle Claude pour générer une analyse basée sur:
-    - Les vrais chiffres des marchés
-    - Les vraies news Reuters
-    """
-    
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        print("⚠️  ANTHROPIC_API_KEY non définie")
-        return None
-    
-    # Préparer le contexte
-    def format_indices(indices):
-        return ", ".join([f"{i['name']} {i['change']:+.2f}%" for i in indices])
-    
-    # News Reuters en texte
-    news_text = "\n".join([f"- {n['title']}" for n in reuters_news[:5]])
-    
-    context = f"""Tu es un analyste financier expert. 
-
-DONNÉES DES MARCHÉS D'AUJOURD'HUI:
-- US: {format_indices(us_indices)}
-- Asie: {format_indices(asia_indices)}
-- Europe: {format_indices(europe_indices)}
-- Crypto: {format_indices(crypto)}
-
-ACTUALITÉS REUTERS (contexte):
-{news_text}
-
-Basé UNIQUEMENT sur les données et news ci-dessus, écris un résumé court (3-4 phrases) 
-qui explique les mouvements des marchés en lien avec les news Reuters.
-
-Sois précis, analytique, cite les secteurs/valeurs concernés.
-Résumé:
-"""
-    
-    try:
-        response = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": "claude-opus-4-6",
-                "max_tokens": 300,
-                "messages": [
-                    {"role": "user", "content": context}
-                ]
-            },
-            timeout=15
-        )
-        
-        if response.status_code == 200:
-            data = response.json()
-            analysis = data["content"][0]["text"].strip()
-            return analysis
-        else:
-            print(f"⚠️  Erreur API Claude: {response.status_code}")
-            return None
-    
-    except Exception as e:
-        print(f"⚠️  Erreur génération analyse: {e}")
-        return None
-
-
-# ============================================================================
 # GÉNÉRATION HTML DE L'EMAIL
 # ============================================================================
 
@@ -268,7 +141,7 @@ def format_change(change):
     return f"{sign}{change:.2f}%"
 
 
-def build_html_email(is_monday, analysis, reuters_news):
+def build_html_email(is_monday):
     """Crée le HTML de l'email"""
     
     # Récupérer les données
@@ -282,6 +155,7 @@ def build_html_email(is_monday, analysis, reuters_news):
     us_label = "Clôture US — vendredi soir" if is_monday else "Clôture US — hier soir"
     asia_label = "Clôture Asie — ce matin" if is_monday else "Clôture Asie — cette nuit"
     
+    # Générer les rangées HTML pour les indices
     def make_rows(indices):
         rows = ""
         for idx in indices:
@@ -289,7 +163,7 @@ def build_html_email(is_monday, analysis, reuters_news):
             rows += f"""
             <tr>
               <td class="name">{idx["name"]}</td>
-              <td class="price">{idx["price']:.2f}</td>
+              <td class="price">{idx["price"]:.2f}</td>
               <td class="change {color}">{format_change(idx["change"])}</td>
             </tr>
             """
@@ -306,39 +180,6 @@ def build_html_email(is_monday, analysis, reuters_news):
             </tr>
             """
         return rows
-    
-    # Section analyse IA
-    analysis_section = ""
-    if analysis:
-        analysis_section = f"""
-    <!-- ANALYSE -->
-    <div class="section analysis-section">
-      <div class="section-title">📊 Analyse du jour</div>
-      <p class="analysis-text">{analysis}</p>
-      <div class="source-note">Source: Données Yahoo Finance + News Reuters via NewsAPI</div>
-    </div>
-    """
-    
-    # Section news Reuters
-    news_section = ""
-    if reuters_news:
-        news_html = ""
-        for news in reuters_news[:5]:
-            date_str = news["date"][:10] if news["date"] else ""
-            news_html += f"""
-            <div class="news-item">
-              <div class="news-title">{news["title"]}</div>
-              <div class="news-meta">{news["source"]} • {date_str}</div>
-            </div>
-            """
-        
-        news_section = f"""
-    <!-- REUTERS NEWS -->
-    <div class="section news-section">
-      <div class="section-title">📰 Actualités Reuters</div>
-      {news_html}
-    </div>
-    """
     
     html = f"""
 <!DOCTYPE html>
@@ -396,51 +237,6 @@ def build_html_email(is_monday, analysis, reuters_news):
     border-bottom: none;
   }}
   
-  .analysis-section {{
-    background: linear-gradient(135deg, rgba(30, 60, 114, 0.05) 0%, rgba(42, 82, 152, 0.05) 100%);
-    border-left: 4px solid #1e3c72;
-  }}
-  
-  .analysis-text {{
-    margin: 0 0 12px 0;
-    font-size: 14px;
-    line-height: 1.7;
-    color: #1a1a1a;
-    font-style: italic;
-  }}
-  
-  .source-note {{
-    font-size: 11px;
-    color: #999;
-    margin: 0;
-  }}
-  
-  .news-section {{
-    background: #fafafa;
-  }}
-  
-  .news-item {{
-    padding: 12px 0;
-    border-top: 1px solid #f0f0f0;
-  }}
-  
-  .news-item:first-child {{
-    border-top: none;
-  }}
-  
-  .news-title {{
-    font-size: 13px;
-    font-weight: 600;
-    color: #333;
-    line-height: 1.5;
-  }}
-  
-  .news-meta {{
-    font-size: 11px;
-    color: #999;
-    margin-top: 4px;
-  }}
-  
   .section-title {{
     font-size: 14px;
     font-weight: 700;
@@ -448,6 +244,12 @@ def build_html_email(is_monday, analysis, reuters_news):
     margin: 0 0 15px 0;
     text-transform: uppercase;
     letter-spacing: 1px;
+  }}
+  
+  .section-sub {{
+    font-size: 12px;
+    color: #999;
+    margin: 0 0 15px 0;
   }}
   
   table {{
@@ -535,14 +337,10 @@ def build_html_email(is_monday, analysis, reuters_news):
       <p>{today}</p>
     </div>
     
-    {analysis_section}
-    {news_section}
-    
     <!-- INDICES US -->
     <div class="section">
       <div class="section-title">🇺🇸 {us_label}</div>
-      <div class="source-note">Source: Yahoo Finance / Morningstar</div>
-      <table style="margin-top: 10px;">
+      <table>
         {make_rows(us_indices)}
       </table>
     </div>
@@ -550,8 +348,7 @@ def build_html_email(is_monday, analysis, reuters_news):
     <!-- INDICES ASIE -->
     <div class="section">
       <div class="section-title">🌏 {asia_label}</div>
-      <div class="source-note">Source: Yahoo Finance / Morningstar</div>
-      <table style="margin-top: 10px;">
+      <table>
         {make_rows(asia_indices)}
       </table>
     </div>
@@ -559,8 +356,7 @@ def build_html_email(is_monday, analysis, reuters_news):
     <!-- INDICES EUROPE -->
     <div class="section">
       <div class="section-title">🇪🇺 Ouverture Europe — ce matin</div>
-      <div class="source-note">Source: Yahoo Finance / Morningstar</div>
-      <table style="margin-top: 10px;">
+      <table>
         {make_rows(europe_indices)}
       </table>
     </div>
@@ -568,8 +364,7 @@ def build_html_email(is_monday, analysis, reuters_news):
     <!-- CRYPTO -->
     <div class="section">
       <div class="section-title">₿ Crypto</div>
-      <div class="source-note">Source: Yahoo Finance / CoinGecko</div>
-      <table style="margin-top: 10px;">
+      <table>
         {make_rows(crypto)}
       </table>
     </div>
@@ -577,8 +372,7 @@ def build_html_email(is_monday, analysis, reuters_news):
     <!-- TOP MOUVEMENTS -->
     <div class="section">
       <div class="section-title">📈 Top Mouvements</div>
-      <div class="source-note">Source: Yahoo Finance / Morningstar</div>
-      <div class="movers-grid" style="margin-top: 15px;">
+      <div class="movers-grid">
         <div>
           <div class="movers-col-title green">🚀 Hausses</div>
           <table>
@@ -596,11 +390,9 @@ def build_html_email(is_monday, analysis, reuters_news):
     
     <!-- FOOTER -->
     <div class="footer">
-      <p><strong>Sources</strong><br>
-      • Données marchés: Yahoo Finance / Morningstar<br>
-      • News: Reuters via NewsAPI<br>
-      • Analyse: Claude (Anthropic)<br>
-      <small>Généré automatiquement chaque matin lundi-vendredi.</small></p>
+      <p>Données : Yahoo Finance / Morningstar<br>
+      Généré automatiquement chaque matin du lundi au vendredi.<br>
+      <small>Les variations reflètent la dernière séance clôturée.</small></p>
     </div>
   </div>
 </body>
@@ -626,6 +418,7 @@ def send_email(html_content, is_monday):
     
     recipients = [r.strip() for r in recipients_str.split(",")]
     
+    # Préparer l'email
     msg = MIMEMultipart("alternative")
     msg["From"] = sender
     msg["To"] = ", ".join(recipients)
@@ -635,6 +428,7 @@ def send_email(html_content, is_monday):
     
     msg.attach(MIMEText(html_content, "html", "utf-8"))
     
+    # Envoyer
     try:
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
@@ -656,25 +450,7 @@ def main():
     
     print(f"🤖 Génération du recap... (lundi: {is_monday})")
     
-    # Récupérer les données
-    us_indices = collect_indices("US")
-    asia_indices = collect_indices("ASIE")
-    europe_indices = collect_indices("EUROPE")
-    crypto = get_crypto_data()
-    movers = get_top_movers()
-    
-    # Récupérer les news Reuters
-    print("📰 Récupération des news Reuters...")
-    newsapi_key = os.environ.get("NEWSAPI_KEY")
-    reuters_news = get_reuters_news(newsapi_key, days_back=2)
-    print(f"   → {len(reuters_news)} news trouvées")
-    
-    # Générer l'analyse IA basée sur news vraies
-    print("🧠 Génération de l'analyse IA...")
-    analysis = generate_ai_analysis(us_indices, asia_indices, europe_indices, crypto, movers, reuters_news, is_monday)
-    
-    # Générer et envoyer l'email
-    html = build_html_email(is_monday, analysis, reuters_news)
+    html = build_html_email(is_monday)
     send_email(html, is_monday)
 
 
