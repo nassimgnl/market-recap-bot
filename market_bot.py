@@ -198,18 +198,26 @@ def format_change(change):
 # MACRO NEWS (GOOGLE NEWS)
 # =========================
 
+import urllib.parse
+import feedparser
+
 def get_news(query):
-    url = f"https://news.google.com/rss/search?q={query}&hl=en&gl=US&ceid=US:en"
+    base_url = "https://news.google.com/rss/search?q="
+
+    encoded_query = urllib.parse.quote(query)
+
+    url = base_url + encoded_query + "&hl=en&gl=US&ceid=US:en"
+
     feed = feedparser.parse(url)
 
     news = []
-    for entry in feed.entries[:3]:
+    for entry in feed.entries[:5]:
         news.append({
             "title": entry.title,
             "link": entry.link
         })
-    return news
 
+    return news
 
 def build_macro_section():
     regions = {
