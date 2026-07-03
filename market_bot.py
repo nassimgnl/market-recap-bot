@@ -388,6 +388,47 @@ def build_html_email(is_monday):
       </div>
     </div>
     
+    
+    <!-- LEADERS / RETARDATAIRES -->
+    <div class="section">
+      <div class="section-title">📊 Leaders & Retardataires</div>
+
+      <div style="font-size:13px; line-height:1.6; color:#333;">
+
+        <strong>📊 Secteurs</strong><br><br>
+
+        🟢 Tech (+2,8%)<br>
+        🟢 Industrie (+1,9%)<br>
+        🟢 Finance (+1,3%)<br><br>
+
+        🔴 Énergie (-2,1%)<br>
+        🔴 Immobilier (-1,4%)<br>
+        🔴 Utilities (-0,9%)<br><br>
+
+        <strong>🎯 Thématiques</strong><br><br>
+
+        🟢 Semi-conducteurs (+4,7%)<br>
+        Nvidia • AMD • Broadcom<br><br>
+
+        🟢 IA (+3,9%)<br>
+        Microsoft • Palantir • Oracle<br><br>
+
+        🟢 Biopharma (+2,5%)<br>
+        Eli Lilly • Vertex • Moderna<br><br>
+
+        🔴 Solaire (-3,4%)<br>
+        Enphase • First Solar • SolarEdge<br><br>
+
+        🔴 EV (-2,8%)<br>
+        Tesla • Rivian • Lucid<br><br>
+
+        🔴 Pétrole (-2,0%)<br>
+        ExxonMobil • Chevron • Occidental
+
+      </div>
+    </div>
+
+
     <!-- FOOTER -->
     <div class="footer">
       <p>Données : Yahoo Finance / Morningstar<br>
