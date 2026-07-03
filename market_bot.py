@@ -22,6 +22,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 import yfinance as yf
+import feedparser
 
 # ============================================================================
 # SECTEURS & THÈMES (LIVE DATA)
@@ -190,6 +191,68 @@ def format_change(change):
     """Formate la variation: +2.34% ou -1.56%"""
     sign = "+" if change >= 0 else ""
     return f"{sign}{change:.2f}%"
+
+
+
+# =========================
+# MACRO NEWS (GOOGLE NEWS)
+# =========================
+
+def get_news(query):
+    url = f"https://news.google.com/rss/search?q={query}&hl=en&gl=US&ceid=US:en"
+    feed = feedparser.parse(url)
+
+    news = []
+    for entry in feed.entries[:3]:
+        news.append({
+            "title": entry.title,
+            "link": entry.link
+        })
+    return news
+
+
+def build_macro_section():
+    regions = {
+        "🇺🇸 USA": "US economy inflation Fed jobs PMI",
+        "🇪🇺 Europe": "Europe inflation ECB economy",
+        "🇬🇧 UK": "UK economy BoE inflation",
+        "🇯🇵 Japan": "Japan BoJ economy",
+        "🇨🇳 China": "China PMI economy trade"
+    }
+
+    text = "📰 En bref\n\n"
+    all_titles = []
+
+    for region, query in regions.items():
+        news = get_news(query)
+        text += region + " :\n"
+
+        for n in news:
+            text += f"- {n['title']}\n  ({n['link']})\n"
+            all_titles.append(n['title'])
+
+        text += "\n"
+
+    return text, all_titles
+
+
+KEYWORDS = ["inflation","fed","ecb","jobs","pmi","gdp","recession","oil","war","tariff","earnings"]
+
+def market_sentiment(titles):
+    score = 0
+    for t in titles:
+        t = t.lower()
+        if any(k in t for k in KEYWORDS):
+            score += 1
+        if any(k in t for k in ["fall","drop","weak","recession","crisis"]):
+            score -= 1
+
+    if score > 1:
+        return "🟢 Risk-on"
+    elif score < -1:
+        return "🔴 Risk-off"
+    else:
+        return "🟡 Neutral"
 
 
 def build_html_email(is_monday):
@@ -449,6 +512,48 @@ def build_html_email(is_monday):
       </div>
     </div>
     
+    
+    <!-- LEADERS / RETARDATAIRES -->
+    <div class="section">
+      <div class="section-title">📊 Leaders & Retardataires</div>
+
+      <div style="font-size:13px; line-height:1.6; color:#333;">
+
+        <strong>📊 Secteurs</strong><br><br>
+
+        🟢 Tech (+2,8%)<br>
+        🟢 Industrie (+1,9%)<br>
+        🟢 Finance (+1,3%)<br><br>
+
+        🔴 Énergie (-2,1%)<br>
+        🔴 Immobilier (-1,4%)<br>
+        🔴 Utilities (-0,9%)<br><br>
+
+        <strong>🎯 Thématiques</strong><br><br>
+
+        🟢 Semi-conducteurs (+4,7%)<br>
+        Nvidia • AMD • Broadcom<br><br>
+
+        🟢 IA (+3,9%)<br>
+        Microsoft • Palantir • Oracle<br><br>
+
+        🟢 Biopharma (+2,5%)<br>
+        Eli Lilly • Vertex • Moderna<br><br>
+
+        🔴 Solaire (-3,4%)<br>
+        Enphase • First Solar • SolarEdge<br><br>
+
+        🔴 EV (-2,8%)<br>
+        Tesla • Rivian • Lucid<br><br>
+
+        🔴 Pétrole (-2,0%)<br>
+        ExxonMobil • Chevron • Occidental
+
+      </div>
+    </div>
+
+
+    
     <!-- DYNAMIC SECTORS & THEMES -->
     <div class="section">
       <div class="section-title">📊 Leaders & Retardataires</div>
@@ -547,3 +652,64 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# =========================
+# MACRO NEWS (GOOGLE NEWS)
+# =========================
+
+def get_news(query):
+    url = f"https://news.google.com/rss/search?q={query}&hl=en&gl=US&ceid=US:en"
+    feed = feedparser.parse(url)
+
+    news = []
+    for entry in feed.entries[:3]:
+        news.append({
+            "title": entry.title,
+            "link": entry.link
+        })
+    return news
+
+
+def build_macro_section():
+    regions = {
+        "🇺🇸 USA": "US economy inflation Fed jobs PMI",
+        "🇪🇺 Europe": "Europe inflation ECB economy",
+        "🇬🇧 UK": "UK economy BoE inflation",
+        "🇯🇵 Japan": "Japan BoJ economy",
+        "🇨🇳 China": "China PMI economy trade"
+    }
+
+    text = "📰 En bref\n\n"
+    all_titles = []
+
+    for region, query in regions.items():
+        news = get_news(query)
+        text += region + " :\n"
+
+        for n in news:
+            text += f"- {n['title']}\n  ({n['link']})\n"
+            all_titles.append(n['title'])
+
+        text += "\n"
+
+    return text, all_titles
+
+
+KEYWORDS = ["inflation","fed","ecb","jobs","pmi","gdp","recession","oil","war","tariff","earnings"]
+
+def market_sentiment(titles):
+    score = 0
+    for t in titles:
+        t = t.lower()
+        if any(k in t for k in KEYWORDS):
+            score += 1
+        if any(k in t for k in ["fall","drop","weak","recession","crisis"]):
+            score -= 1
+
+    if score > 1:
+        return "🟢 Risk-on"
+    elif score < -1:
+        return "🔴 Risk-off"
+    else:
+        return "🟡 Neutral"
