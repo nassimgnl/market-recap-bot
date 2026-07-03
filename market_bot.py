@@ -1,23 +1,19 @@
 #!/usr/bin/env python3
 """
-Market Recap Bot v2 - Zéro Config
-==================================
-Récupère les données des marchés et envoie un email HTML chaque matin.
+Market Recap Bot - Version corrigée
+===================================
+Récupère les données des marchés + secteurs + thématiques
 
-Données : Yahoo Finance / Morningstar (via yfinance)
-Horaire : automatiquement via GitHub Actions
-Mise en page : HTML design terminal financier
-
-Variables d'environnement:
+Variables d'environnement requises:
   EMAIL_ADDRESS   -> ton adresse Gmail
-  EMAIL_PASSWORD  -> mot de passe d'application Gmail (16 caractères)
-  EMAIL_TO        -> où envoyer le recap (email de destination)
+  EMAIL_PASSWORD  -> mot de passe d'application Gmail
+  EMAIL_TO        -> où envoyer le recap
 """
 
 import os
 import smtplib
 import ssl
-from datetime import datetime, timedelta
+from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -25,58 +21,7 @@ import yfinance as yf
 import feedparser
 
 # ============================================================================
-# SECTEURS & THÈMES (LIVE DATA)
-# ============================================================================
-
-SECTORS = {
-    "Tech": "XLK",
-    "Énergie": "XLE",
-    "Finance": "XLF",
-    "Santé": "XLV",
-    "Industrie": "XLI",
-    "Immobilier": "XLRE",
-    "Conso discrétionnaire": "XLY",
-    "Conso de base": "XLP",
-    "Utilities": "XLU",
-    "Matériaux": "XLB"
-}
-
-THEMES = {
-    "Semi-conducteurs": ["NVDA", "AMD", "TSM", "ASML"],
-    "IA": ["MSFT", "NVDA", "GOOGL", "PLTR"],
-    "Biopharma": ["LLY", "MRK", "PFE", "BMY"],
-    "EV": ["TSLA", "RIVN", "LCID"],
-    "Solaire": ["ENPH", "SEDG", "FSLR"],
-    "Crypto": ["COIN", "MSTR"],
-    "Cybersécurité": ["CRWD", "PANW", "ZS"]
-}
-
-def get_sector_performance():
-    results = []
-    for name, ticker in SECTORS.items():
-        price, change = get_price_change(ticker)
-        if change is not None:
-            results.append({"name": name, "change": change})
-    results.sort(key=lambda x: x["change"], reverse=True)
-    return results
-
-def get_theme_performance():
-    results = []
-    for theme, tickers in THEMES.items():
-        changes = []
-        for t in tickers:
-            price, change = get_price_change(t)
-            if change is not None:
-                changes.append(change)
-        if changes:
-            avg = sum(changes) / len(changes)
-            results.append({"theme": theme, "change": avg})
-    results.sort(key=lambda x: x["change"], reverse=True)
-    return results
-
-
-# ============================================================================
-# ACTIFS À SUIVRE
+# CONFIGURATION : ACTIFS À SUIVRE
 # ============================================================================
 
 INDICES = {
@@ -110,14 +55,35 @@ WATCHLIST = {
     "Tesla": "TSLA",
 }
 
+SECTORS = {
+    "Tech": "XLK",
+    "Énergie": "XLE",
+    "Finance": "XLF",
+    "Santé": "XLV",
+    "Industrie": "XLI",
+    "Immobilier": "XLRE",
+    "Conso discrétionnaire": "XLY",
+    "Conso de base": "XLP",
+    "Utilities": "XLU",
+    "Matériaux": "XLB"
+}
+
+THEMES = {
+    "Semi-conducteurs": ["NVDA", "AMD", "AVGO"],
+    "IA": ["MSFT", "NVDA", "GOOGL"],
+    "Biopharma": ["LLY", "MRK", "PFE"],
+    "EV": ["TSLA", "RIVN", "NIO"],
+    "Solaire": ["ENPH", "SEDG", "FSLR"],
+    "Crypto": ["COIN", "MSTR"],
+    "Cybersécurité": ["CRWD", "PANW", "ZS"]
+}
+
 # ============================================================================
-# RÉCUPÉRATION DES DONNÉES
+# ÉTAPE 1 : RÉCUPÉRATION DES PRIX (Doit être AVANT les fonctions qui l'utilisent)
 # ============================================================================
 
 def get_price_change(ticker: str):
-    """
-    Retourne: (prix_actuel, variation_%), ou (None, None) si erreur
-    """
+    """Retourne: (prix_actuel, variation_%), ou (None, None) si erreur"""
     try:
         data = yf.Ticker(ticker).history(period="5d")
         if data.empty or len(data) < 2:
@@ -132,10 +98,29 @@ def get_price_change(ticker: str):
         return None, None
 
 
+# ============================================================================
+# ÉTAPE 2 : COLLECTE DES DONNÉES PAR CATÉGORIE
+# ============================================================================
+
 def collect_indices(category):
     """Récupère les données d'une catégorie d'indices"""
     results = []
     for name, ticker in INDICES[category].items():
+        price, change = get_price_change(ticker)
+        if price is not None:
+            results.append({
+                "name": name,
+                "price": price,
+                "change": change,
+                "color": "green" if change >= 0 else "red"
+            })
+    return results
+
+
+def get_crypto_data():
+    """Bitcoin et Ethereum"""
+    results = []
+    for name, ticker in CRYPTO.items():
         price, change = get_price_change(ticker)
         if price is not None:
             results.append({
@@ -161,98 +146,47 @@ def get_top_movers():
             })
     
     all_moves.sort(key=lambda x: x["change"])
-    
     return {
         "gainers": list(reversed(all_moves[-3:])),
         "losers": all_moves[:3]
     }
 
 
-def get_crypto_data():
-    """Bitcoin et Ethereum"""
+def get_sector_performance():
+    """Performance des secteurs"""
     results = []
-    for name, ticker in CRYPTO.items():
+    for name, ticker in SECTORS.items():
         price, change = get_price_change(ticker)
-        if price is not None:
-            results.append({
-                "name": name,
-                "price": price,
-                "change": change,
-                "color": "green" if change >= 0 else "red"
-            })
+        if change is not None:
+            results.append({"name": name, "change": change})
+    results.sort(key=lambda x: x["change"], reverse=True)
+    return results
+
+
+def get_theme_performance():
+    """Performance des thématiques (moyenne des actions)"""
+    results = []
+    for theme, tickers in THEMES.items():
+        changes = []
+        for t in tickers:
+            price, change = get_price_change(t)
+            if change is not None:
+                changes.append(change)
+        if changes:
+            avg = sum(changes) / len(changes)
+            results.append({"theme": theme, "change": avg})
+    results.sort(key=lambda x: x["change"], reverse=True)
     return results
 
 
 # ============================================================================
-# GÉNÉRATION HTML DE L'EMAIL
+# ÉTAPE 3 : GÉNÉRER L'EMAIL HTML
 # ============================================================================
 
 def format_change(change):
     """Formate la variation: +2.34% ou -1.56%"""
     sign = "+" if change >= 0 else ""
     return f"{sign}{change:.2f}%"
-
-
-
-# =========================
-# MACRO NEWS (GOOGLE NEWS)
-# =========================
-
-def get_news(query):
-    url = f"https://news.google.com/rss/search?q={query}&hl=en&gl=US&ceid=US:en"
-    feed = feedparser.parse(url)
-
-    news = []
-    for entry in feed.entries[:3]:
-        news.append({
-            "title": entry.title,
-            "link": entry.link
-        })
-    return news
-
-
-def build_macro_section():
-    regions = {
-        "🇺🇸 USA": "US economy inflation Fed jobs PMI",
-        "🇪🇺 Europe": "Europe inflation ECB economy",
-        "🇬🇧 UK": "UK economy BoE inflation",
-        "🇯🇵 Japan": "Japan BoJ economy",
-        "🇨🇳 China": "China PMI economy trade"
-    }
-
-    text = "📰 En bref\n\n"
-    all_titles = []
-
-    for region, query in regions.items():
-        news = get_news(query)
-        text += region + " :\n"
-
-        for n in news:
-            text += f"- {n['title']}\n  ({n['link']})\n"
-            all_titles.append(n['title'])
-
-        text += "\n"
-
-    return text, all_titles
-
-
-KEYWORDS = ["inflation","fed","ecb","jobs","pmi","gdp","recession","oil","war","tariff","earnings"]
-
-def market_sentiment(titles):
-    score = 0
-    for t in titles:
-        t = t.lower()
-        if any(k in t for k in KEYWORDS):
-            score += 1
-        if any(k in t for k in ["fall","drop","weak","recession","crisis"]):
-            score -= 1
-
-    if score > 1:
-        return "🟢 Risk-on"
-    elif score < -1:
-        return "🔴 Risk-off"
-    else:
-        return "🟡 Neutral"
 
 
 def build_html_email(is_monday):
@@ -264,22 +198,19 @@ def build_html_email(is_monday):
     asia_indices = collect_indices("ASIE")
     crypto = get_crypto_data()
     movers = get_top_movers()
-
     sectors = get_sector_performance()
     themes = get_theme_performance()
-
-    top_sectors = sectors[:3]
-    bottom_sectors = sectors[-3:]
-
-    top_themes = themes[:3]
-    bottom_themes = themes[-3:]
-
     
     today = datetime.now().strftime("%A %d %B %Y").capitalize()
     us_label = "Clôture US — vendredi soir" if is_monday else "Clôture US — hier soir"
     asia_label = "Clôture Asie — ce matin" if is_monday else "Clôture Asie — cette nuit"
     
-    # Générer les rangées HTML pour les indices
+    # Préparer les sections secteurs et thèmes
+    top_sectors = sectors[:3]
+    bottom_sectors = sectors[-3:]
+    top_themes = themes[:3]
+    bottom_themes = themes[-3:]
+    
     def make_rows(indices):
         rows = ""
         for idx in indices:
@@ -370,12 +301,6 @@ def build_html_email(is_monday):
     letter-spacing: 1px;
   }}
   
-  .section-sub {{
-    font-size: 12px;
-    color: #999;
-    margin: 0 0 15px 0;
-  }}
-  
   table {{
     width: 100%;
     border-collapse: collapse;
@@ -437,6 +362,12 @@ def build_html_email(is_monday):
     color: #333;
   }}
   
+  .stat-box {{
+    font-size: 13px;
+    line-height: 1.8;
+    color: #333;
+  }}
+  
   .footer {{
     padding: 20px 25px;
     background: #fafafa;
@@ -464,6 +395,7 @@ def build_html_email(is_monday):
     <!-- INDICES US -->
     <div class="section">
       <div class="section-title">🇺🇸 {us_label}</div>
+      <div style="font-size:11px; color:#999; margin-bottom:12px;">Source: Yahoo Finance</div>
       <table>
         {make_rows(us_indices)}
       </table>
@@ -472,6 +404,7 @@ def build_html_email(is_monday):
     <!-- INDICES ASIE -->
     <div class="section">
       <div class="section-title">🌏 {asia_label}</div>
+      <div style="font-size:11px; color:#999; margin-bottom:12px;">Source: Yahoo Finance</div>
       <table>
         {make_rows(asia_indices)}
       </table>
@@ -480,6 +413,7 @@ def build_html_email(is_monday):
     <!-- INDICES EUROPE -->
     <div class="section">
       <div class="section-title">🇪🇺 Ouverture Europe — ce matin</div>
+      <div style="font-size:11px; color:#999; margin-bottom:12px;">Source: Yahoo Finance</div>
       <table>
         {make_rows(europe_indices)}
       </table>
@@ -488,6 +422,7 @@ def build_html_email(is_monday):
     <!-- CRYPTO -->
     <div class="section">
       <div class="section-title">₿ Crypto</div>
+      <div style="font-size:11px; color:#999; margin-bottom:12px;">Source: Yahoo Finance</div>
       <table>
         {make_rows(crypto)}
       </table>
@@ -496,6 +431,7 @@ def build_html_email(is_monday):
     <!-- TOP MOUVEMENTS -->
     <div class="section">
       <div class="section-title">📈 Top Mouvements</div>
+      <div style="font-size:11px; color:#999; margin-bottom:12px;">Source: Yahoo Finance</div>
       <div class="movers-grid">
         <div>
           <div class="movers-col-title green">🚀 Hausses</div>
@@ -512,81 +448,37 @@ def build_html_email(is_monday):
       </div>
     </div>
     
-    
-    <!-- LEADERS / RETARDATAIRES -->
+    <!-- LEADERS & RETARDATAIRES -->
     <div class="section">
       <div class="section-title">📊 Leaders & Retardataires</div>
-
-      <div style="font-size:13px; line-height:1.6; color:#333;">
-
-        <strong>📊 Secteurs</strong><br><br>
-
-        🟢 Tech (+2,8%)<br>
-        🟢 Industrie (+1,9%)<br>
-        🟢 Finance (+1,3%)<br><br>
-
-        🔴 Énergie (-2,1%)<br>
-        🔴 Immobilier (-1,4%)<br>
-        🔴 Utilities (-0,9%)<br><br>
-
-        <strong>🎯 Thématiques</strong><br><br>
-
-        🟢 Semi-conducteurs (+4,7%)<br>
-        Nvidia • AMD • Broadcom<br><br>
-
-        🟢 IA (+3,9%)<br>
-        Microsoft • Palantir • Oracle<br><br>
-
-        🟢 Biopharma (+2,5%)<br>
-        Eli Lilly • Vertex • Moderna<br><br>
-
-        🔴 Solaire (-3,4%)<br>
-        Enphase • First Solar • SolarEdge<br><br>
-
-        🔴 EV (-2,8%)<br>
-        Tesla • Rivian • Lucid<br><br>
-
-        🔴 Pétrole (-2,0%)<br>
-        ExxonMobil • Chevron • Occidental
-
+      <div style="font-size:11px; color:#999; margin-bottom:12px;">Source: Yahoo Finance</div>
+      
+      <div class="stat-box">
+        <strong>📊 Secteurs Top</strong><br>
+        🟢 {top_sectors[0]['name']} ({format_change(top_sectors[0]['change'])})<br>
+        🟢 {top_sectors[1]['name']} ({format_change(top_sectors[1]['change'])})<br>
+        🟢 {top_sectors[2]['name']} ({format_change(top_sectors[2]['change'])})<br><br>
+        
+        <strong>Secteurs Bottom</strong><br>
+        🔴 {bottom_sectors[0]['name']} ({format_change(bottom_sectors[0]['change'])})<br>
+        🔴 {bottom_sectors[1]['name']} ({format_change(bottom_sectors[1]['change'])})<br>
+        🔴 {bottom_sectors[2]['name']} ({format_change(bottom_sectors[2]['change'])})<br><br>
+        
+        <strong>🎯 Thématiques Top</strong><br>
+        🟢 {top_themes[0]['theme']} ({format_change(top_themes[0]['change'])})<br>
+        🟢 {top_themes[1]['theme']} ({format_change(top_themes[1]['change'])})<br>
+        🟢 {top_themes[2]['theme']} ({format_change(top_themes[2]['change'])})<br><br>
+        
+        <strong>Thématiques Bottom</strong><br>
+        🔴 {bottom_themes[0]['theme']} ({format_change(bottom_themes[0]['change'])})<br>
+        🔴 {bottom_themes[1]['theme']} ({format_change(bottom_themes[1]['change'])})<br>
+        🔴 {bottom_themes[2]['theme']} ({format_change(bottom_themes[2]['change'])})
       </div>
     </div>
-
-
     
-    <!-- DYNAMIC SECTORS & THEMES -->
-    <div class="section">
-      <div class="section-title">📊 Leaders & Retardataires</div>
-
-      <div style="font-size:13px; line-height:1.6; color:#333;">
-
-        <strong>📊 Secteurs</strong><br><br>
-
-        🟢 {top_sectors[0]['name']} ({top_sectors[0]['change']:.2f}%)<br>
-        🟢 {top_sectors[1]['name']} ({top_sectors[1]['change']:.2f}%)<br>
-        🟢 {top_sectors[2]['name']} ({top_sectors[2]['change']:.2f}%)<br><br>
-
-        🔴 {bottom_sectors[0]['name']} ({bottom_sectors[0]['change']:.2f}%)<br>
-        🔴 {bottom_sectors[1]['name']} ({bottom_sectors[1]['change']:.2f}%)<br>
-        🔴 {bottom_sectors[2]['name']} ({bottom_sectors[2]['change']:.2f}%)<br><br>
-
-        <strong>🎯 Thématiques</strong><br><br>
-
-        🟢 {top_themes[0]['theme']} ({top_themes[0]['change']:.2f}%)<br>
-        🟢 {top_themes[1]['theme']} ({top_themes[1]['change']:.2f}%)<br>
-        🟢 {top_themes[2]['theme']} ({top_themes[2]['change']:.2f}%)<br><br>
-
-        🔴 {bottom_themes[0]['theme']} ({bottom_themes[0]['change']:.2f}%)<br>
-        🔴 {bottom_themes[1]['theme']} ({bottom_themes[1]['change']:.2f}%)<br>
-        🔴 {bottom_themes[2]['theme']} ({bottom_themes[2]['change']:.2f}%)<br>
-
-      </div>
-    </div>
-
-
     <!-- FOOTER -->
     <div class="footer">
-      <p>Données : Yahoo Finance / Morningstar<br>
+      <p>Données : Yahoo Finance<br>
       Généré automatiquement chaque matin du lundi au vendredi.<br>
       <small>Les variations reflètent la dernière séance clôturée.</small></p>
     </div>
@@ -614,7 +506,6 @@ def send_email(html_content, is_monday):
     
     recipients = [r.strip() for r in recipients_str.split(",")]
     
-    # Préparer l'email
     msg = MIMEMultipart("alternative")
     msg["From"] = sender
     msg["To"] = ", ".join(recipients)
@@ -624,7 +515,6 @@ def send_email(html_content, is_monday):
     
     msg.attach(MIMEText(html_content, "html", "utf-8"))
     
-    # Envoyer
     try:
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
@@ -652,64 +542,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-# =========================
-# MACRO NEWS (GOOGLE NEWS)
-# =========================
-
-def get_news(query):
-    url = f"https://news.google.com/rss/search?q={query}&hl=en&gl=US&ceid=US:en"
-    feed = feedparser.parse(url)
-
-    news = []
-    for entry in feed.entries[:3]:
-        news.append({
-            "title": entry.title,
-            "link": entry.link
-        })
-    return news
-
-
-def build_macro_section():
-    regions = {
-        "🇺🇸 USA": "US economy inflation Fed jobs PMI",
-        "🇪🇺 Europe": "Europe inflation ECB economy",
-        "🇬🇧 UK": "UK economy BoE inflation",
-        "🇯🇵 Japan": "Japan BoJ economy",
-        "🇨🇳 China": "China PMI economy trade"
-    }
-
-    text = "📰 En bref\n\n"
-    all_titles = []
-
-    for region, query in regions.items():
-        news = get_news(query)
-        text += region + " :\n"
-
-        for n in news:
-            text += f"- {n['title']}\n  ({n['link']})\n"
-            all_titles.append(n['title'])
-
-        text += "\n"
-
-    return text, all_titles
-
-
-KEYWORDS = ["inflation","fed","ecb","jobs","pmi","gdp","recession","oil","war","tariff","earnings"]
-
-def market_sentiment(titles):
-    score = 0
-    for t in titles:
-        t = t.lower()
-        if any(k in t for k in KEYWORDS):
-            score += 1
-        if any(k in t for k in ["fall","drop","weak","recession","crisis"]):
-            score -= 1
-
-    if score > 1:
-        return "🟢 Risk-on"
-    elif score < -1:
-        return "🔴 Risk-off"
-    else:
-        return "🟡 Neutral"
