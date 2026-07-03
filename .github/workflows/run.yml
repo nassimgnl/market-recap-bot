@@ -1,0 +1,29 @@
+name: Daily Market Recap
+
+on:
+  schedule:
+    # 8h45 UTC = 9h45 CEST (heure d'été) ou 9h45 CET (hiver)
+    # Juste après l'ouverture des marchés européens (9h00)
+    - cron: "45 8 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  send-recap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      
+      - name: Run market bot
+        env:
+          EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: python market_bot.py
