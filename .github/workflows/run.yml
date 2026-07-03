@@ -4,7 +4,7 @@ on:
   schedule:
     # 8h45 UTC = 9h45 CEST (heure d'été) ou 9h45 CET (hiver)
     # Juste après l'ouverture des marchés européens (9h00)
-    - cron: "45 8 * * 1-5"
+    - cron: "40 10 * * 1-5"
   workflow_dispatch:
 
 jobs:
